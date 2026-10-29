@@ -1,67 +1,87 @@
+"use strict";
 const photo = document.getElementById("photo");
+const cameraPhoto = document.getElementById("cameraPhoto");
 const preview = document.getElementById("preview");
 const question = document.getElementById("question");
 const generate = document.getElementById("generate");
-
-question.textContent = "趣味と写真で問題を作るよ";
-
-function getPhotoFiles() {
-  const files = Array.from(photo.files);
-
-  if (!files.length) {
-    throw new Error("写真を選んでください");
-  }
-
-  if (files.length > 5) {
-    throw new Error("写真は最大5枚まで選んでください");
-  }
-
-  const allowed = [
-    "image/jpeg", "image/png", "image/gif", "image/webp"
-  ];
-
-  if (files.some(file => !allowed.includes(file.type))) {
-    throw new Error("JPEG・PNG・GIF・WebPの写真を選んでください");
-  }
-
-  const total = files.reduce((sum, file) => sum + file.size, 0);
-
-  if (total > 10 * 1024 * 1024) {
-    throw new Error("写真の合計を10MB以下にしてください");
-  }
-
+const hobbyInput = document.getElementById("hobby");
+const loading = document.getElementById("loading");
+const photoMessage = document.getElementById("photoMessage");
+let selectedFiles = [];
+let previewUrls = [];
+let busy = false;
+function getPhotoFiles(files = selectedFiles) {
+  if (!files.length) throw new Error("写真を撮るか、アルバムから選んでください。");
+  if (files.length > 5) throw new Error("写真は最大5枚までです。不要な写真を削除してください。");
+  if (files.some(file => !["image/jpeg", "image/png", "image/gif", "image/webp"].includes(file.type)))
+    throw new Error("JPEG・PNG・GIF・WebPの写真を選んでください。HEICの場合はJPEGに変換してください。");
+  if (files.reduce((sum, file) => sum + file.size, 0) > 10 * 1024 * 1024)
+    throw new Error("写真の合計を10MB以下にしてください。");
   return files;
 }
-
-let previewUrls = [];
-
-photo.addEventListener("change", () => {
+function renderPhotos() {
   previewUrls.forEach(url => URL.revokeObjectURL(url));
   previewUrls = [];
   preview.replaceChildren();
-
-  if (!photo.files.length) return;
-
-  try {
-    const files = getPhotoFiles();
-
-    files.forEach((file, index) => {
-      const image = document.createElement("img");
-      const url = URL.createObjectURL(file);
-      previewUrls.push(url);
-
-      image.src = url;
-      image.alt = "教材の写真" + (index + 1);
-      image.style.cssText =
-        "max-width:100%;max-height:240px;display:block;margin:12px 0;";
-
-      preview.appendChild(image);
+  selectedFiles.forEach((file, index) => {
+    const card = document.createElement("div");
+    card.className = "photo-card";
+    const img = document.createElement("img");
+    const url = URL.createObjectURL(file);
+    previewUrls.push(url);
+    img.src = url;
+    img.alt = "教材の写真 " + (index + 1);
+    const remove = document.createElement("button");
+    remove.type = "button";
+    remove.textContent = "写真" + (index + 1) + "を削除";
+    remove.disabled = busy;
+    remove.addEventListener("click", () => {
+      if (busy) return;
+      selectedFiles.splice(index, 1);
+      photoMessage.textContent = "";
+      renderPhotos();
     });
-  } catch (error) {
-    question.textContent = error.message;
-  }
+    card.append(img, remove);
+    preview.append(card);
+  });
+  document.getElementById("photoCount").textContent = selectedFiles.length
+    ? selectedFiles.length + "／5枚 選択済み" : "写真はまだ選ばれていません";
+}
+for (const input of [photo, cameraPhoto]) {
+  input.addEventListener("change", () => {
+    if (!input.files.length || busy) return;
+    try {
+      const files = [...selectedFiles, ...Array.from(input.files)];
+      getPhotoFiles(files);
+      selectedFiles = files;
+      photoMessage.textContent = "";
+      renderPhotos();
+    } catch (error) { photoMessage.textContent = error.message; }
+    input.value = "";
+  });
+}
+document.getElementById("takePhoto").addEventListener("click", () => cameraPhoto.click());
+document.getElementById("choosePhoto").addEventListener("click", () => photo.click());
+document.getElementById("begin").addEventListener("click", () => {
+  document.getElementById("home").hidden = true;
+  document.getElementById("builder").hidden = false;
+  document.getElementById("builderTitle").focus();
 });
-
+document.getElementById("goHome").addEventListener("click", () => {
+  document.getElementById("builder").hidden = true;
+  document.getElementById("home").hidden = false;
+  document.getElementById("begin").textContent = "問題づくりに戻る";
+  document.getElementById("begin").focus();
+});
+function setBusy(value) {
+  busy = value;
+  for (const el of [generate, photo, cameraPhoto, hobbyInput,
+    document.getElementById("takePhoto"), document.getElementById("choosePhoto"),
+    ...preview.querySelectorAll("button")]) el.disabled = value;
+  generate.textContent = value ? "作っています…" : "この写真から問題を作る";
+  loading.hidden = !value;
+  generate.setAttribute("aria-busy", String(value));
+}
 function createDiagram(diagram) {
   if (!diagram) return null;
 
@@ -465,66 +485,48 @@ function showQuestions(result) {
   moveToQuestion();
 }
 generate.addEventListener("click", async () => {
-  const hobby = document.getElementById("hobby").value.trim();
-
-  if (!hobby) {
-    question.textContent = "趣味を入力してください";
-    return;
-  }
-
+  if (busy) return;
   let files;
-  try {
-    files = getPhotoFiles();
-  } catch (error) {
-    question.textContent = error.message;
+  const hobby = hobbyInput.value.trim();
+  try { files = getPhotoFiles(); }
+  catch (error) { photoMessage.textContent = error.message; return; }
+  if (!hobby) {
+    question.textContent = "好きなこと・興味のあることを入力してください。";
+    hobbyInput.focus();
     return;
   }
-
-  generate.disabled = true;
-  photo.disabled = true;
-  question.textContent =
-    files.length + "枚の写真を読み取って、問題を作っています…";
-
+  question.replaceChildren();
+  setBusy(true);
+  const started = Date.now();
+  const elapsed = document.getElementById("elapsed");
+  elapsed.textContent = "経過時間：0秒";
+  const timer = setInterval(() => {
+    elapsed.textContent = "経過時間：" + Math.floor((Date.now() - started) / 1000) + "秒";
+  }, 1000);
   try {
-    const images = await Promise.all(files.map(file =>
-      new Promise((resolve, reject) => {
-        const reader = new FileReader();
-        reader.onload = () => resolve(reader.result);
-        reader.onerror = () =>
-          reject(new Error("写真を読み込めませんでした"));
-        reader.readAsDataURL(file);
-      })
-    ));
-
+    const images = await Promise.all(files.map(file => new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(reader.result);
+      reader.onerror = () => reject(new Error("写真を読み込めませんでした。もう一度写真を選んでください。"));
+      reader.onabort = () => reject(new Error("写真の読み込みが中断されました。"));
+      reader.readAsDataURL(file);
+    })));
     const response = await fetch("/generate", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
+      method: "POST", headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ hobby, images })
     });
-
     let data;
-    try {
-      data = await response.json();
-    } catch {
-      throw new Error("サーバーの応答を読めませんでした。再起動を確認してください");
-    }
-
-    if (!response.ok) {
-      throw new Error(data.error || "問題を作成できませんでした");
-    }
-
+    try { data = await response.json(); }
+    catch { throw new Error("サーバーの応答を読めませんでした。少し待って、もう一度お試しください。"); }
+    if (!response.ok) throw new Error(data.error || "問題を作成できませんでした。");
     let result;
-    try {
-      result = JSON.parse(data.question);
-    } catch {
-      throw new Error("問題の形式を読めませんでした。もう一度作成してください");
-    }
-
+    try { result = JSON.parse(data.question); }
+    catch { throw new Error("問題の形式を読めませんでした。もう一度作成してください。"); }
     showQuestions(result);
   } catch (error) {
-    question.textContent = "エラー：" + error.message;
+    question.textContent = "エラー：" + error.message + " 写真と入力内容は残っています。もう一度お試しください。";
   } finally {
-    generate.disabled = false;
-    photo.disabled = false;
+    clearInterval(timer);
+    setBusy(false);
   }
 });

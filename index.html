@@ -1,19 +1,52 @@
 <!doctype html>
 <html lang="ja">
 <head>
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta charset="UTF-8">
-  <title>テストアプリ</title>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>テストアプリ</title>
+<style>
+:root{font-family:system-ui,-apple-system,"Segoe UI",sans-serif;color:#24344b;background:#f3f6fb;line-height:1.8}*{box-sizing:border-box}[hidden]{display:none!important}body{margin:0}main{width:min(100% - 32px,760px);margin:32px auto 60px}h1{font-size:clamp(26px,6vw,36px);line-height:1.4}h2{font-size:21px;margin:0 0 18px}p{margin:10px 0}button,input{font:inherit}button{cursor:pointer;border:1px solid #c5d4e7;border-radius:12px;padding:12px 20px;background:#fff;color:#214d84;min-height:48px;font-weight:700}button:hover:not(:disabled){background:#eaf2ff}button:disabled{opacity:.6;cursor:wait}button:focus-visible,input:focus-visible{outline:3px solid #2774d9;outline-offset:3px}.primary{width:100%;background:#2365b5;color:white;border:0;padding:18px 20px;font-size:19px}.primary:hover:not(:disabled){background:#174f94}.panel{background:white;padding:clamp(20px,5vw,32px);border:1px solid #e0e8f3;border-radius:20px;margin:20px 0;box-shadow:0 5px 20px #1f477008}.intro{text-align:center;padding:32px 0}.eyebrow{font-weight:700;color:#2365b5;letter-spacing:.1em}.muted,.notice{font-size:14px;color:#52627a}.steps{display:flex;justify-content:center;gap:12px;flex-wrap:wrap;padding:0;list-style:none}.steps li{background:#eaf2ff;border-radius:30px;padding:8px 16px}.actions{display:flex;gap:12px;flex-wrap:wrap}.actions button{flex:1;min-width:180px}input[type=text]{width:100%;padding:14px;border:1px solid #a6b6cc;border-radius:10px;margin:12px 0;font-size:16px}label{font-weight:600}.step{display:inline-grid;place-items:center;width:32px;height:32px;background:#e8f1ff;border-radius:50%;color:#2365b5;margin-right:10px}#preview{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:12px;margin-top:16px}.photo-card{min-width:0}.photo-card img{width:100%;height:160px;object-fit:contain;border-radius:10px;background:#f3f6fb}.photo-card button{width:100%;font-size:13px;padding:6px}#photoMessage{color:#aa2835}#question{overflow-wrap:anywhere;scroll-margin-top:20px}#question:empty{display:none}#loading{text-align:center;padding:20px;background:#edf4ff;border-radius:12px;margin-top:16px}.spinner{display:inline-block;width:26px;height:26px;border:3px solid #c5d8f3;border-top-color:#2365b5;border-radius:50%;animation:spin 1s linear infinite}@keyframes spin{to{transform:rotate(360deg)}}@media(prefers-reduced-motion:reduce){.spinner{animation:none}}.notice{padding:16px;border-left:3px solid #c1cfe0}#elapsed{font-variant-numeric:tabular-nums}
+</style>
 </head>
 <body>
-  <h1>テストアプリ</h1>
-  <input id="hobby" type="text" placeholder="趣味を入力（例：サッカー）">
-<p>教材の写真を選んでください（最大5枚・合計10MBまで）。</p>
-<input type="file" id="photo"
-       accept="image/jpeg,image/png,image/gif,image/webp" multiple>
+<main>
+<section id="home" class="intro">
+<p class="eyebrow">PHOTO × YOUR INTERESTS</p>
+<h1>テストアプリ</h1>
+<p>教材の写真から、<br>好きなことに合わせた問題を作ろう。</p>
+<ol class="steps"><li>1 写真</li><li>2 好きなこと</li><li>3 問題作成</li></ol>
+<div class="panel"><p>教材の写真と、好きなことを用意するだけ。<br>１問ずつ答えて、解説を確認できます。</p><button id="begin" type="button" class="primary">問題づくりをはじめる</button></div>
+</section>
+<section id="builder" hidden>
+<button id="goHome" type="button">← ホームへ</button>
+<h1 id="builderTitle" tabindex="-1">問題を作ろう</h1>
+<section class="panel">
+<h2><span class="step">1</span>写真を用意する</h2>
+<p>教材の写真を撮るか、アルバムから選んでください。</p>
+<p class="muted">最大5枚・合計10MBまで。JPEG・PNG・GIF・WebPに対応。</p>
+<div class="actions"><button id="takePhoto" type="button">写真を撮る</button><button id="choosePhoto" type="button">アルバムから選ぶ</button></div>
+<input type="file" id="cameraPhoto" accept="image/jpeg,image/png,image/gif,image/webp" capture="environment" hidden>
+<input type="file" id="photo" accept="image/jpeg,image/png,image/gif,image/webp" multiple hidden>
+<p class="muted">※カメラの起動方法は端末やブラウザにより異なります。</p>
+<p id="photoCount" class="muted" role="status">写真はまだ選ばれていません</p>
+<p id="photoMessage" role="alert"></p>
 <div id="preview"></div>
-<button type="button" id="generate">問題を作る</button>
-<p id="question"></p>
-  <script src="app.js"></script>
+</section>
+<section class="panel">
+<h2><span class="step">2</span>好きなことを教える</h2>
+<label for="hobby">好きなこと・興味のあることを入力してください</label>
+<input id="hobby" type="text" placeholder="例：サッカー、ゲーム、料理など" aria-describedby="hobbyHelp">
+<p id="hobbyHelp" class="muted">好きなこと・興味に合わせた問題を作ります。</p>
+</section>
+<section class="panel">
+<h2><span class="step">3</span>問題を作る</h2>
+<button type="button" id="generate" class="primary">この写真から問題を作る</button>
+<div id="loading" hidden><span class="spinner" aria-hidden="true"></span><p role="status">写真を読み取って、問題を作っています…</p><p class="muted">30秒〜1分ほどが目安です。写真や混雑状況により、長くかかることがあります。</p><p id="elapsed" class="muted"></p></div>
+</section>
+<div id="question" aria-live="polite"></div>
+</section>
+<p class="notice">問題・解答・解説はAIが作成しています。誤りが含まれる場合があるため、疑問に思ったら教科書などで確認してください。</p>
+</main>
+<script src="app.js"></script>
 </body>
 </html>
